@@ -49,7 +49,7 @@ Aio.reidentify = function(userID) {
   Aio.unidentify();
   Aio.identify(userID);
 };
-Aio.identify = function(userID, userData) {
+Aio.identify = function(userID, userData = {}) {
   // Working with device id
   if (!Aio.getCookie("aio_device_id")) {
     var device_id_generated = Aio.generateUniqueID();
@@ -440,10 +440,10 @@ Aio.track = function(eventName, eventData = {}, userData = {}) {
       userData: JSON.stringify(userData)
     },
     function(data) {
-      console.log("Success");
+      console.log('ok ' + data);
     },
     function(data) {
-      console.log("Error");
+      console.log("Error " + data);
     }
   );
 };

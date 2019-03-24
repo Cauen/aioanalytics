@@ -45,9 +45,9 @@ app.get('/r*', function (req, res) {
 		  <title>Meu site</title>
 	  </head>
 	  <body>
-	  	Campanha Google PPC <a href="http://127.0.0.1:3000/a?utm_src=google&utm_medium=ppc">link</a><br>
-	    Campanha Facebook PPC <a href="http://127.0.0.1:3000/a?utm_src=facebook&utm_medium=ppc">link</a><br>
-	    Campanha Externa <a href="http://127.0.0.1:3000/a?utm_src=refer&utm_content=post-1-blog">link</a><br>
+	  	Campanha Google PPC <a href="http://192.168.1.7:3000/a?utm_src=google&utm_medium=ppc">link</a><br>
+	    Campanha Facebook PPC <a href="http://192.168.1.7:3000/a?utm_src=facebook&utm_medium=ppc">link</a><br>
+	    Campanha Externa <a href="http://192.168.1.7:3000/a?utm_src=refer&utm_content=post-1-blog">link</a><br>
 	  </body>
 	  </html>`);
 })

@@ -8,7 +8,7 @@
         if (value > 0) {
             value = "+"+value;
         }
-        Aio.track(event, { value: value }, { bought: "yes", $revenue: value.toString() });
+        Aio.track(event, { value: value }, { bought: "yes", $revenue: value.toString(), vendas: value.toString() });
       }
       function contacted(value) {
         Aio.track("Contacted", { "Button color": "Red" }, {$email: 'usermail@gmail.com'});

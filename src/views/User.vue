@@ -71,12 +71,17 @@
                     <div
                       style="color: #6d859e;"
                       class="name"
-                    >{{ item.name }}<div
-                        v-if="item.data._imported"
-                        class="imported"
-                      >
-                        (imported from {{item.data._imported}})
-                      </div>
+                    >{{ item.name }}
+                        <button
+                           v-if="item.data._imported"
+                          :title="'Imported from ' + item.data._imported"
+                          v-tippy="{ theme : 'light bordered' }"
+                        >
+                          <v-icon
+                            color="primary"
+                            dark
+                          >arrow_downward</v-icon>
+                        </button>
                     </div>
 
                   </template>
@@ -88,19 +93,16 @@
                       :key="i"
                     >
                       <span class="property_name">{{i}}: </span><span class="property_value">{{ property.value }}
-                        <v-tooltip top>
-                          <template
-                            v-if="property.extra.changed_user"
-                            v-slot:activator="{ on }"
-                          >
-                            <v-icon
-                              color="primary"
-                              dark
-                              v-on="on"
-                            >autorenew</v-icon>
-                          </template>
-                          <span>Changed</span>
-                        </v-tooltip></span>
+                        <button
+                          v-if="property.extra && property.extra.changed_user"
+                          :title="property.extra.changed_user"
+                          v-tippy="{ theme : 'light bordered' }"
+                        >
+                          <v-icon
+                            color="primary"
+                            dark
+                          >autorenew</v-icon>
+                        </button></span>
 
                     </div>
                   </div>
@@ -136,16 +138,16 @@
                   :key="iData.id"
                   :def="iData[0]"
                 >
-                  <td v-if="iData[1]"><span class="property_name">{{ iData[0] }}</span></td>
-                  <td v-if="iData[1]"><span class="property_value">{{ datefy(iData[1]) }}</span></td>
+                  <td v-if="iData[1] !== undefined"><span class="property_name">{{ iData[0] }}</span></td>
+                  <td v-if="iData[1] !== undefined"><span class="property_value">{{ datefy(iData[1]) }}</span></td>
                 </tr>
                 <tr
                   class="user-property custom-data"
                   v-for="cData in custom_dataArray"
                   :key="cData.id"
                 >
-                  <td v-if="cData[1]"><span class="property_name">{{ cData[0] }}</span></td>
-                  <td v-if="cData[1]"><span class="property_value">{{ datefy(cData[1]) }}</span></td>
+                  <td v-if="cData[1] !== undefined"><span class="property_name">{{ cData[0] }}</span></td>
+                  <td v-if="cData[1] !== undefined"><span class="property_value">{{ datefy(cData[1]) }}</span></td>
                 </tr>
               </tbody>
             </table>
@@ -328,10 +330,16 @@ tr[def="transfered_to"] span {
   color: white;
 }
 
-.property .v-icon {
-  color: #6d859e;
+#events .v-icon {
+  color: #6d859e !important;
   font-size: 16px;
   padding: 0 10px;
+}
+
+.tippy-tooltip {
+  font-size: 1.1rem;
+  padding: 0.3rem 0.6rem;
+  font-family: "Avenir", Helvetica, Arial, sans-serif;
 }
 </style>
 
@@ -378,7 +386,7 @@ export default class User extends Vue {
   getUser(identification: any) {
     userService.getUser(identification).then(res => {
       this.userdata = res.data;
-      this.events = res.data.events.reverse();
+      if (res.data.events) this.events = res.data.events.reverse();
       if (res.data.comments) this.comments = res.data.comments.reverse();
 
       var custom_data = res.data.custom_data;

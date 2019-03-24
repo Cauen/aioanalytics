@@ -79,6 +79,29 @@ function passEvents(oldUserId, newUserId, req, res, userData) {
             log(event);
             event.user = newUser.id;
             event.data["_imported"] = oldUserId;
+
+            // If event changed user number, increment in new user
+            var userEventDataArray = Object.entries(event.data);
+            userEventDataArray.map(event => {
+              console.log(event);
+              var name = event[0];
+              var value = event[1].value;
+
+              if (value && value[0] && (value[0] === "+" || value[0] === "-"))
+                newUser.custom_data[name] += value.substring(1);
+            });
+            newUser.markModified("custom_data");
+            newUser
+              .save()
+              .then(user => {
+                console.log("User saved after events passing");
+              })
+              .catch(err => {
+                log(
+                  "unable update user in events loop, to the database " + err
+                );
+              });
+
             event.comments.push({
               content: "imported from " + oldUserId + " to " + newUserId
             });
@@ -193,6 +216,10 @@ function trackEvent(
   var userDataArray = Object.entries(userData);
   var eventDataArray = Object.entries(eventData); // [ ['a', 1], ['1', 'b'], ['2', 'c'] ]
   var contextArray = Object.entries(context); //    [ ['a', 1], ['1', 'b'], ['2', 'c'] ]
+  eventDataArray.map(data => {
+    // Transform event data value in object
+    data[1] = { value: data[1] };
+  });
 
   if (!identification) res.send("User not identified");
 
@@ -248,10 +275,16 @@ function trackEvent(
             // If already existing user property
             eventDataArray.push([
               "#" + name,
-              currentPropertyValue + " → " + value
+              {
+                value,
+                extra: {
+                  changed_user:
+                    "Changed " + currentPropertyValue + " → " + value
+                }
+              }
             ]);
           // If new user property
-          else eventDataArray.push(["#" + name, value]);
+          else eventDataArray.push(["#" + name, { value, extra: {} }]);
 
           // If incrementing a numeric field
           if (numericNewValue && numericOldValue && incrementingDecrementing) {
@@ -289,7 +322,9 @@ function trackEvent(
           var value = data[1];
 
           var changedUser = false;
-          if (user.custom_data["_" + name] !== value) changedUser = true;
+          if (user.custom_data["_" + name] !== value)
+            changedUser =
+              "Changed: " + user.custom_data["_" + name] + " → " + value;
           user.custom_data["_" + name] = value;
           event.data["_" + name] = {
             value: value,
@@ -342,6 +377,8 @@ module.exports.trackEvent = function(req, res) {
     session_id,
     referrer
   );
+
+  res.send("1");
 };
 
 function log(val) {}
