@@ -25,7 +25,10 @@ let User = new Schema(
         "Please fill a valid email address"
       ]
     },
-    initial_referer: {
+    transfered_to: {
+      type: String
+    },
+    initial_referrer: {
       type: String
     },
     initial_page: {
@@ -52,7 +55,7 @@ let User = new Schema(
       default: 0
     },
     tags: [{ type: Schema.Types.ObjectId, ref: "Tags" }],
-    events: [{ type: Schema.Types.ObjectId, ref: "Event" }],
+    //events: [{ type: Schema.Types.ObjectId, ref: "Event" }],
     messages: [{}],
     updated: { type: Date, default: Date.now }
   },

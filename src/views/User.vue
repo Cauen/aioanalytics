@@ -71,15 +71,50 @@
                     <div
                       style="color: #6d859e;"
                       class="name"
-                    >{{ item.name }}</div>
+                    >{{ item.name }}<div
+                        v-if="item.data._imported"
+                        class="imported"
+                      >
+                        (imported from {{item.data._imported}})
+                      </div>
+                    </div>
+
                   </template>
+                  <div class="event-header"><span class="comment_name">Event Properties</span></div>
                   <div class="properties">
                     <div
                       class="property"
                       v-for="(property, i) in item.data"
                       :key="i"
                     >
-                      <span class="property_name">{{i}}: </span><span class="property_value">{{ property }}</span>
+                      <span class="property_name">{{i}}: </span><span class="property_value">{{ property.value }}
+                        <v-tooltip top>
+                          <template
+                            v-if="property.extra.changed_user"
+                            v-slot:activator="{ on }"
+                          >
+                            <v-icon
+                              color="primary"
+                              dark
+                              v-on="on"
+                            >autorenew</v-icon>
+                          </template>
+                          <span>Changed</span>
+                        </v-tooltip></span>
+
+                    </div>
+                  </div>
+                  <div
+                    v-if="item.comments.length"
+                    class="event-header"
+                  ><span class="comment_name">{{item.comments.length}} Event Comments</span></div>
+                  <div class="comments">
+                    <div
+                      class="comment"
+                      v-for="(comment, i) in item.comments"
+                      :key="i"
+                    >
+                      <span class="comment_name">{{datefy(comment.created)}}: </span><span class="comment_value">{{ comment.content }}</span>
                     </div>
                   </div>
                 </v-expansion-panel-content>
@@ -92,24 +127,25 @@
           id="aio-right-flex"
         >
           <div id="user_properties">
-            <h3>Properties</h3>
+            <h3>User Properties</h3>
             <table style="width: 100%">
               <tbody id="custom_data">
                 <tr
-                  class="important-data"
+                  class="user-property important-data"
                   v-for="iData in importantDataArray"
                   :key="iData.id"
+                  :def="iData[0]"
                 >
-                  <td v-if="iData[1]">{{ iData[0] }}</td>
-                  <td v-if="iData[1]">{{ datefy(iData[1]) }}</td>
+                  <td v-if="iData[1]"><span class="property_name">{{ iData[0] }}</span></td>
+                  <td v-if="iData[1]"><span class="property_value">{{ datefy(iData[1]) }}</span></td>
                 </tr>
                 <tr
-                  class="custom-data"
+                  class="user-property custom-data"
                   v-for="cData in custom_dataArray"
                   :key="cData.id"
                 >
-                  <td v-if="cData[1]">{{ cData[0] }}</td>
-                  <td v-if="cData[1]">{{ datefy(cData[1]) }}</td>
+                  <td v-if="cData[1]"><span class="property_name">{{ cData[0] }}</span></td>
+                  <td v-if="cData[1]"><span class="property_value">{{ datefy(cData[1]) }}</span></td>
                 </tr>
               </tbody>
             </table>
@@ -135,9 +171,22 @@ body {
   padding: 10px 0;
 }
 
+#events .event-header {
+  font-weight: 600;
+  background: #f4f9fd;
+  padding: 10px;
+  text-transform: uppercase;
+  text-align: center;
+  border: 1px #d4e4f2 solid;
+}
+
+#events .event-header span {
+  color: #4ba8ff;
+}
+
 tr td {
   padding: 10px 0;
-  border-top: 1px solid #e5eef4;
+  border-top: 1px solid #d4e4f2;
 }
 
 .property {
@@ -145,7 +194,7 @@ tr td {
   padding: 10px;
   flex: 50%;
   background: #f4f9fd;
-  border: 1px #e4e4e4 solid;
+  border: 1px #d4e4f2 solid;
 }
 
 .properties {
@@ -153,11 +202,13 @@ tr td {
   flex-flow: row wrap;
 }
 
-.property_name {
+.property_name,
+.comment_name {
   color: #6d859e;
 }
 
-.property_value {
+.property_value,
+.comment_value {
   color: #4c6072;
 }
 
@@ -171,6 +222,14 @@ tr td {
 #user_properties h3 {
   color: #4c6072;
   padding: 14px 0;
+}
+
+.comment {
+  padding: 10px;
+  padding: 10px;
+  flex: 100%;
+  background: #f4f9fd;
+  border: 1px #e4e4e4 solid;
 }
 
 .user_profile_header {
@@ -260,6 +319,20 @@ img {
   font-size: 20px;
   margin-bottom: 7px;
 }
+
+tr[def="transfered_to"] {
+  background: #f44336;
+}
+
+tr[def="transfered_to"] span {
+  color: white;
+}
+
+.property .v-icon {
+  color: #6d859e;
+  font-size: 16px;
+  padding: 0 10px;
+}
 </style>
 
 <script lang="ts">
@@ -287,9 +360,9 @@ export default class User extends Vue {
     return "#" + Array(6 - color.length + 1).join("0") + color;
   }
 
-  datefy(utc) {
+  datefy(utc: any) {
     var date = new Date(utc);
-    if (Date.parse(utc) > 1)
+    if (Date.parse(utc) > 1 && parseFloat(utc) > 1500)
       return date.toLocaleDateString() + " " + date.toLocaleTimeString();
     return utc;
   }
@@ -302,11 +375,11 @@ export default class User extends Vue {
     this.panel = [];
   }
 
-  mounted() {
-    this.userid = this.$route.params.id;
-    userService.getUser(this.$route.params.id).then(res => {
+  getUser(identification: any) {
+    userService.getUser(identification).then(res => {
       this.userdata = res.data;
       this.events = res.data.events.reverse();
+      if (res.data.comments) this.comments = res.data.comments.reverse();
 
       var custom_data = res.data.custom_data;
       this.custom_dataArray = Object.entries(custom_data);
@@ -319,12 +392,23 @@ export default class User extends Vue {
         device_id: this.userdata.device_id,
         session_id: this.userdata.session_id,
         initial_page: this.userdata.initial_page,
-        initial_referer: this.userdata.initial_referer
+        transfered_to: this.userdata.transfered_to,
+        initial_referrer: this.userdata.initial_referrer
       });
 
       console.log(this.userdata);
       console.log(this.events);
     });
+  }
+
+  mounted() {
+    var that = this;
+    this.userid = this.$route.params.id;
+
+    that.getUser(that.userid);
+    setInterval(function() {
+      that.getUser(that.userid);
+    }, 5000);
   }
 }
 </script>

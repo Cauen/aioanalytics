@@ -31,33 +31,23 @@ app.use(    '/auth',                                        authRoute);
 app.post(   '/admin/add',                    				AdminRoute.addUser);
 
 // User Routes
-app.post(   '/user/track',                    				userRoute.putUserData);
-app.post(   '/user/data',                    					userRoute.getUserData);
-app.get(   	'/user/all',                    					userRoute.getAllUsers);
-app.get(		'/user/wevents', 													userRoute.userWithEvents);
+app.post(   '/user/track',                    				userRoute.trackEvent);
+app.get(   	'/user/all',                    					userRoute.usersWithEvents);
+app.post(		'/user/data', 														userRoute.userWithEvents);
+app.post(		'/user/identify', 												userRoute.anonIdentified);
 
 app.use("/aio.js", express.static(__dirname + '/aio.js'));
-app.get('/', function (req, res) {
-
-  	res.send(`<!DOCTYPE html>
-	  <html>
-	  <head>
-		  <script src="aio.js"></script>
-		  <title>Meu site</title>
-	  </head>
-	  <body>
-	  My Site
-	  </body>
-	  </html>`);
-});
-app.get('/b*', function (req, res) {
+app.use("/a*", express.static(__dirname + '/test.html'));
+app.get('/r*', function (req, res) {
 	res.send(`<!DOCTYPE html>
 	  <html>
 	  <head>
 		  <title>Meu site</title>
 	  </head>
 	  <body>
-	  My Site <a href="http://127.0.0.1:3000">link</a>
+	  	Campanha Google PPC <a href="http://127.0.0.1:3000/a?utm_src=google&utm_medium=ppc">link</a><br>
+	    Campanha Facebook PPC <a href="http://127.0.0.1:3000/a?utm_src=facebook&utm_medium=ppc">link</a><br>
+	    Campanha Externa <a href="http://127.0.0.1:3000/a?utm_src=refer&utm_content=post-1-blog">link</a><br>
 	  </body>
 	  </html>`);
 })

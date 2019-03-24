@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="aio.js"></script>
+    <title>Meu site</title>
+    <script>
+      function bought(value, event) {
+        if (value > 0) {
+            value = "+"+value;
+        }
+        Aio.track(event, { value: value }, { bought: "yes", $revenue: value.toString() });
+      }
+      function contacted(value) {
+        Aio.track("Contacted", { "Button color": "Red" }, {$email: 'usermail@gmail.com'});
+      }
+      function login(value) {
+        //Aio.identify('site1413-' + value);
+        Aio.identify('site1413-' + value, { $name: value });
+      }
+      function logout(value) {
+        Aio.track('Logout');
+        Aio.reidentify();
+      }
+    </script>
+  </head>
+  <body>
+    <button onclick="bought(125, 'Purchase')">Buy 125</button>
+    <button onclick="bought(-125, 'Refund')">Refund 125</button>
+    <button onclick="contacted()">Contact</button>
+    <button onclick="login('emanueluqi')">Login emanuel</button>
+    <button onclick="logout()">Logout</button>
+    My Site
+  </body>
+</html>

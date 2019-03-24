@@ -24,7 +24,7 @@
           <router-link :to="'/user/'+props.item.identification">
             <td class="text-xs-left">{{ props.item.identification }}</td>
           </router-link>
-          <td class="text-xs-left">{{ props.item.initialReferer }}</td>
+          <td class="text-xs-left">{{ props.item.initial_referrer }}</td>
           <td class="text-xs-left">{{ datefy(props.item.updated) }}</td>
           <td class="text-xs-left">{{ props.item.events.length }}</td>
           <td class="text-xs-left">{{ props.item.revenue }}</td>
@@ -64,7 +64,7 @@ export default class About extends Vue {
       value: "name"
     },
     { text: "Identification", value: "identification" },
-    { text: "Referer", value: "referer" },
+    { text: "referrer", value: "referrer" },
     { text: "Last Track", value: "lastrack" },
     { text: "Event Count", value: "eventcount" },
     { text: "Revenue", value: "revenue" }
@@ -82,15 +82,19 @@ export default class About extends Vue {
     var date = new Date(utc);
     return date.toLocaleDateString() + " " + date.toLocaleTimeString();
   }
-  mounted() {
+  getUsers() {
     User.getUsers().then(res => {
       var users = res.data;
       users.sort(function(a, b) {
         return new Date(b.updated) - new Date(a.updated);
       });
       this.users = users;
-      console.log(this.users);
+      //console.log(this.users);
     });
+  }
+  mounted() {
+    var that = this;
+    setInterval(function(){ that.getUsers(); }, 1000);
   }
 }
 </script>

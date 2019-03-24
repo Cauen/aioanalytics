@@ -34,7 +34,22 @@ Aio.isIdentified = function() {
     Aio.getCookie("aioanalytics_id") && localStorage.getItem("aioanalytics_id")
   );
 };
-Aio.indentify = function(userID) {
+Aio.unidentify = function() {
+  Aio.setCookie("aio_device_id", "");
+  Aio.setCookie("aioanalytics_sid", "");
+  Aio.setCookie("aioanalytics_id", "");
+
+  localStorage.removeItem("aio_device_id");
+  localStorage.removeItem("aioanalytics_sid");
+  localStorage.removeItem("aioanalytics_id");
+
+  sessionStorage.removeItem("aioanalytics_sid");
+};
+Aio.reidentify = function(userID) {
+  Aio.unidentify();
+  Aio.identify(userID);
+};
+Aio.identify = function(userID, userData) {
   // Working with device id
   if (!Aio.getCookie("aio_device_id")) {
     var device_id_generated = Aio.generateUniqueID();
@@ -61,6 +76,9 @@ Aio.indentify = function(userID) {
 
   // Working with identification id
   if (userID) {
+    //If already identified and changing, track event
+    var currentIdentification = localStorage.getItem("aioanalytics_id");
+
     Aio.setCookie("aioanalytics_id", userID);
     Aio.aioanalyticsSet = true;
     try {
@@ -68,6 +86,8 @@ Aio.indentify = function(userID) {
     } catch (e) {
       console.warn("Browser does not allow storing in local storage");
     }
+
+    if (currentIdentification) Aio.identifyRequest(currentIdentification, userData);
   } else if (!localStorage.getItem("aioanalytics_id")) {
     // Default identification is device_id
     Aio.setCookie("aioanalytics_id", device_id);
@@ -311,17 +331,21 @@ Aio.userContext = function() {
   }
 
   return {
-    screenWidth: screenWidth,
-    screenHeight: screenHeight,
+    screen_width: screenWidth,
+    screen_height: screenHeight,
     browser: browser,
-    browserVersion: version,
-    browserMajorVersion: majorVersion,
+    browser_version: version,
+    browser_major_version: majorVersion,
     mobile: mobile,
     os: os,
-    osVersion: osVersion,
+    os_version: osVersion,
     cookies: cookieEnabled,
-    flashVersion: flashVersion,
-    currentUrl: window.location.href
+    flash_version: flashVersion,
+    current_url: window.location.href,
+    current_id: localStorage.getItem("aioanalytics_id"),
+    current_device_id: localStorage.getItem("aio_device_id"),
+    current_sid: localStorage.getItem("aioanalytics_sid"),
+    referrer: document.referrer
   };
 };
 
@@ -332,7 +356,7 @@ Aio.appendTrackedContactToData = function(data) {
       data["aioanalytics_id"] = localStorage.getItem("aioanalytics_id");
       data["aio_device_id"] = localStorage.getItem("aio_device_id");
       data["aioanalytics_sid"] = localStorage.getItem("aioanalytics_sid");
-      data["aio_referer"] = document.referrer;
+      data["aio_referrer"] = document.referrer;
       data["context"] = JSON.stringify(Aio.userContext());
     }
   }
@@ -388,7 +412,20 @@ Aio.makeCORSRequest = function(
   }
   xhr.send(query);
 };
-Aio.siteURL = "http://127.0.0.1:3000";
+Aio.siteURL = "http://192.168.1.7:3000";
+Aio.identifyRequest = function(currentIdentification, userData) {
+  Aio.makeCORSRequest(
+    "POST",
+    Aio.siteURL + "/user/identify",
+    { current_identification: currentIdentification, userData: JSON.stringify(userData) },
+    function(data) {
+      console.log("Identified");
+    },
+    function(data) {
+      console.log("Not identified");
+    }
+  );
+};
 Aio.track = function(eventName, eventData = {}, userData = {}) {
   if (typeof eventName !== "string") eventName = "pageview";
   if (typeof eventData !== "object") eventData = {};
@@ -404,11 +441,9 @@ Aio.track = function(eventName, eventData = {}, userData = {}) {
     },
     function(data) {
       console.log("Success");
-      document.write(data);
     },
     function(data) {
       console.log("Error");
-      document.write(data);
     }
   );
 };
@@ -418,6 +453,6 @@ Aio.documentReady(function() {
   if (!Aio.isIdentified()) {
     var generated = Aio.generateUniqueID();
   }
-  Aio.indentify();
+  Aio.identify();
   Aio.track("pageview");
 });
