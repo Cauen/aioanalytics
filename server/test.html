@@ -5,17 +5,17 @@
     <title>Meu site</title>
     <script>
       function bought(value, event) {
-        if (value > 0) {
-            value = "+"+value;
-        }
         Aio.track(event, { value: value }, { bought: "yes", $revenue: value.toString(), vendas: value.toString() });
       }
       function contacted(value) {
         Aio.track("Contacted", { "Button color": "Red" }, {$email: 'usermail@gmail.com'});
       }
+      function increment(data, eventName) {
+        Aio.increment(data, eventName);
+      }
       function login(value) {
         //Aio.identify('site1413-' + value);
-        Aio.identify('site1413-' + value, { $name: value });
+        Aio.identify('site1413-' + value, '', {},{ $name: value });
       }
       function logout(value) {
         Aio.track('Logout');
@@ -24,11 +24,12 @@
     </script>
   </head>
   <body>
-    <button onclick="bought(125, 'Purchase')">Buy 125</button>
-    <button onclick="bought(-125, 'Refund')">Refund 125</button>
-    <button onclick="contacted()">Contact</button>
-    <button onclick="login('emanueluqi')">Login emanuel</button>
-    <button onclick="logout()">Logout</button>
+    <button onclick="Aio.increment({'$revenue': 125}, 'Comprou', {idPedido: 123})">Comprar 125</button><br>
+    <button onclick="Aio.increment({'$revenue': -125}, 'Devolveu', {idPedido: 123, jaDevolveu: 'Sim'})">Devolver 125</button><br>
+    <button onclick="Aio.track('Clicou no Whatsapp')">Botão Whatsapp</button><br>
+    <button onclick="contacted()">Entrar em Contato</button><br>
+    <button onclick="login('cau')">Login cau</button><br>
+    <button onclick="logout()">Logout</button><br>
     My Site
   </body>
 </html>

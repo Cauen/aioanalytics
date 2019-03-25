@@ -13,9 +13,9 @@
         <v-toolbar-items class="hidden-sm-and-down">
           <router-link to="/users">
             <v-btn flat>Users</v-btn>
-          </router-link>
+          </router-link><!--
           <v-btn flat>Link Two</v-btn>
-          <v-btn flat>Link Three</v-btn>
+          <v-btn flat>Link Three</v-btn> -->
         </v-toolbar-items>
       </v-toolbar>
 
@@ -32,7 +32,7 @@
               card
               prominent
             >
-              <v-toolbar-title class="body-2 grey--text">Router Name Again</v-toolbar-title>
+              <v-toolbar-title class="body-2 grey--text">Aio Analytics</v-toolbar-title>
 
               <v-spacer></v-spacer>
 

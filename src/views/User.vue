@@ -94,8 +94,8 @@
                     >
                       <span class="property_name">{{i}}: </span><span class="property_value">{{ property.value }}
                         <button
-                          v-if="property.extra && property.extra.changed_user"
-                          :title="property.extra.changed_user"
+                          v-if="property.options && property.options.changed_user"
+                          :title="property.options.changed_user"
                           v-tippy="{ theme : 'light bordered' }"
                         >
                           <v-icon
@@ -350,13 +350,14 @@ import userService from "../services/users";
 @Component({})
 export default class User extends Vue {
   userid: string = "";
-  userdata: any[] = [];
+  userdata: any = {};
+  comments: any = {};
   events: any[] = [];
   custom_dataArray: any[] = [];
   importantDataArray: any[] = [];
   panel: any[] = [];
 
-  stringToColour(str) {
+  stringToColour(str: any) {
     for (
       var i = 0, hash = 0;
       i < str.length;
@@ -404,8 +405,6 @@ export default class User extends Vue {
         initial_referrer: this.userdata.initial_referrer
       });
 
-      console.log(this.userdata);
-      console.log(this.events);
     });
   }
 
@@ -416,7 +415,7 @@ export default class User extends Vue {
     that.getUser(that.userid);
     setInterval(function() {
       that.getUser(that.userid);
-    }, 5000);
+    }, 1000);
   }
 }
 </script>

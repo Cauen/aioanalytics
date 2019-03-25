@@ -49,7 +49,7 @@ Aio.reidentify = function(userID) {
   Aio.unidentify();
   Aio.identify(userID);
 };
-Aio.identify = function(userID, userData = {}) {
+Aio.identify = function(userID, eventName, eventData = {}, userData = {}) {
   // Working with device id
   if (!Aio.getCookie("aio_device_id")) {
     var device_id_generated = Aio.generateUniqueID();
@@ -87,8 +87,9 @@ Aio.identify = function(userID, userData = {}) {
       console.warn("Browser does not allow storing in local storage");
     }
 
-    if (currentIdentification) Aio.identifyRequest(currentIdentification, userData);
-  } else if (!localStorage.getItem("aioanalytics_id")) {
+    if (currentIdentification)
+      Aio.identifyRequest(currentIdentification, eventName, eventData, userData);
+  } else {
     // Default identification is device_id
     Aio.setCookie("aioanalytics_id", device_id);
     try {
@@ -121,17 +122,6 @@ Aio.parseTextToJSON = function(maybeJSON) {
     response = maybeJSON;
   }
   return response;
-};
-Aio.createCORSRequest = function(method, url) {
-  var xhr = new XMLHttpRequest();
-  method = method.toUpperCase();
-  if ("withCredentials" in xhr) {
-    xhr.open(method, url, true);
-  } else if (typeof XDomainRequest != "undefined") {
-    xhr = new XDomainRequest();
-    xhr.open(method, url);
-  }
-  return xhr;
 };
 Aio.whatBrowser = function() {
   if (
@@ -349,75 +339,40 @@ Aio.userContext = function() {
   };
 };
 
-Aio.appendTrackedContactToData = function(data) {
-  console.log("Appending");
-  if (window.localStorage) {
-    if ((mtcId = localStorage.getItem("aioanalytics_id"))) {
-      data["aioanalytics_id"] = localStorage.getItem("aioanalytics_id");
-      data["aio_device_id"] = localStorage.getItem("aio_device_id");
-      data["aioanalytics_sid"] = localStorage.getItem("aioanalytics_sid");
-      data["aio_referrer"] = document.referrer;
-      data["context"] = JSON.stringify(Aio.userContext());
-    }
-  }
-  return data;
-};
-
 //Make Request
-Aio.CORSRequestsAllowed = true;
-Aio.makeCORSRequest = function(
-  method,
-  url,
-  data,
-  callbackSuccess,
-  callbackError
-) {
-  data = Aio.appendTrackedContactToData(data);
+Aio.makeCORSRequest = function (method, url, data, callbackSuccess, callbackError) {
+  data.context = Aio.userContext();
+  var base64data = btoa(JSON.stringify(data));
+  data = {};
+  data.data = base64data
+
+  console.log('Data sent');
+  console.log(JSON.parse(atob(data.data)));
+
+  var request = new XMLHttpRequest();
+  request.open(method, url, true);
+  request.onreadystatechange = function() {if (request.readyState==4) console.log("Requested!");};
+  request.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
   var query = Aio.serialize(data);
   if (method.toUpperCase() === "GET") {
     url = url + "?" + query;
     var query = "";
   }
-  var xhr = Aio.createCORSRequest(method, url);
-  var response;
-  callbackSuccess = callbackSuccess || function(response, xhr) {};
-  callbackError = callbackError || function(response, xhr) {};
-  if (!xhr) {
-    Aio.log("Aio.debug: Could not create an XMLHttpRequest instance.");
-    return false;
-  }
-  if (!Aio.CORSRequestsAllowed) {
-    callbackError({}, xhr);
-    return false;
-  }
-  xhr.onreadystatechange = function(e) {
-    if (xhr.readyState === XMLHttpRequest.DONE) {
-      response = Aio.parseTextToJSON(xhr.responseText);
-      if (xhr.status === 200) {
-        callbackSuccess(response, xhr);
-      } else {
-        callbackError(response, xhr);
-        if (xhr.status === XMLHttpRequest.UNSENT) {
-          Aio.CORSRequestsAllowed = false;
-        }
-      }
-    }
-  };
-  if (typeof xhr.setRequestHeader !== "undefined") {
-    if (method.toUpperCase() === "POST") {
-      xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-    }
-    xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-    xhr.withCredentials = true;
-  }
-  xhr.send(query);
+  request.send(query);
 };
 Aio.siteURL = "http://192.168.1.7:3000";
-Aio.identifyRequest = function(currentIdentification, userData) {
+Aio.identifyRequest = function(currentIdentification, eventName, eventData = {}, userData = {}) {
+  if (localStorage.getItem("aioanalytics_id") == currentIdentification)
+    return console.warn('Already identified');
   Aio.makeCORSRequest(
     "POST",
     Aio.siteURL + "/user/identify",
-    { current_identification: currentIdentification, userData: JSON.stringify(userData) },
+    {
+      old_identification: currentIdentification,
+      event_name: eventName,
+      event_data: eventData,
+      user_data: userData,
+    },
     function(data) {
       console.log("Identified");
     },
@@ -426,24 +381,42 @@ Aio.identifyRequest = function(currentIdentification, userData) {
     }
   );
 };
-Aio.track = function(eventName, eventData = {}, userData = {}) {
-  if (typeof eventName !== "string") eventName = "pageview";
-  if (typeof eventData !== "object") eventData = {};
-  if (typeof userData !== "object") userData = {};
+Aio.increment = function(userProperties, eventName, eventData = {}, userData = {}) {
+  Aio.makeCORSRequest(
+    "POST",
+    Aio.siteURL + "/user/increment",
+    {
+      user_properties: userProperties,
+      event_name: eventName,
+      event_data: eventData,
+      user_data: userData,
+    },
+    function(data) {
+      console.log("Identified");
+    },
+    function(data) {
+      console.log("Not identified");
+    }
+  );
+}
+Aio.track = function(event_name, event_data = {}, user_data = {}) {
+  if (typeof event_name !== "string") event_name = "pageview";
+  if (typeof event_data !== "object") event_data = {};
+  if (typeof user_data !== "object") user_data = {};
 
   Aio.makeCORSRequest(
     "POST",
     Aio.siteURL + "/user/track",
     {
-      eventName: eventName || "pageview",
-      eventData: JSON.stringify(eventData),
-      userData: JSON.stringify(userData)
+      event_name: event_name || "pageview",
+      event_data: event_data,
+      user_data: user_data
     },
     function(data) {
-      console.log('ok ' + data);
+      console.log("ok ");
     },
     function(data) {
-      console.log("Error " + data);
+      console.log("Error");
     }
   );
 };

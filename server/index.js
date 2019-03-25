@@ -12,6 +12,9 @@ mongoose.connect(config.DB, { useNewUrlParser: true }).then(
   err => { console.log('Can not connect to the database' + err) }
 );
 
+process.on('uncaughtException', function (exception) {
+	// handle or ignore error
+});
 
 app.use(bodyParser.urlencoded({
     extended: true
@@ -35,6 +38,7 @@ app.post(   '/user/track',                    				userRoute.trackEvent);
 app.get(   	'/user/all',                    					userRoute.usersWithEvents);
 app.post(		'/user/data', 														userRoute.userWithEvents);
 app.post(		'/user/identify', 												userRoute.anonIdentified);
+app.post(		'/user/increment', 												userRoute.increment);
 
 app.use("/aio.js", express.static(__dirname + '/aio.js'));
 app.use("/a*", express.static(__dirname + '/test.html'));
@@ -62,3 +66,4 @@ app.post('/', function (req, res) {
 // Server
 const port = process.env.PORT || 3000;
 const server = app.listen(port, '0.0.0.0');
+console.log('Server on, at port ' + port);

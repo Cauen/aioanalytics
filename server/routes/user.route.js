@@ -3,135 +3,164 @@ let Event = require("../models/Event");
 
 var ObjectID = require("mongodb").ObjectID;
 
-module.exports.anonIdentified = async function(req, res) {
-  let user_current_identification =
-    req.body.current_identification || req.body.aio_device_id;
-  let identification = req.body.aioanalytics_id;
-  let userData = JSON.parse(req.body.userData) || {};
-  //console.log(userData);
+function setUserData(user, name, value) {
+  user[name] = value;
+  user.updated = new Date();
+  return value;
+}
 
-  if (identification !== user_current_identification) {
-    passEvents(user_current_identification, identification, req, res, userData);
-    return res.send("Events changed");
-  }
-  return res.send("Events not changed");
-};
+function getUserData(user, name) {
+  return user[name];
+}
 
-function passEvents(oldUserId, newUserId, req, res, userData) {
-  var context = JSON.parse(req.body.context);
-  var ip = req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+function setUserCustomData(user, name, value) {
+  user.custom_data[name] = value;
+  user.updated = new Date();
+  user.markModified("custom_data");
+  return user;
+}
 
-  User.findOne({ identification: oldUserId }, function(err, user) {
-    if (!user) return log("Old user not found");
+function getUserCustomData(user, name) {
+  return user.custom_data[name];
+}
 
-    User.findOne({ identification: newUserId }, function(err, newUser) {
-      // If identifying with a new identification, but there is no event
+module.exports.increment = async function(req, res, next) {
+  let data = fromBase64ToObject(req.body.data);
+  let eventData = data.event_data || {};
+  let eventName = data.event_name || "";
+  let userData = data.user_data || {};
+  let context = data.context;
+  let userProperties = data.user_properties;
+
+  let userPropertiesArray = Object.entries(userProperties);
+  User.findOne({ identification: context.current_id }, (err, user) => {
+    if (!user) { // If user dont exist, set user with properties
+      var newUserData = Object.assign(userData, userProperties);
+      trackEvent(eventName || '_Increment', eventData, newUserData, context)
+    } else {
+      var userNewData = {};
+      userPropertiesArray.map(userProperty => {
+        var name = userProperty[0];
+        var value = getNumberifNumeric(userProperty[1]);
+
+        if (!value || !name) 
+          return next(new Error('Value or name not correct'));
+
+        var currentValue;
+        if (name == '$revenue')
+          currentValue = getUserData(user, 'revenue') || 0;
+        else 
+          currentValue = getUserCustomData(user, name) || 0;
+      
+        userNewData[name] = currentValue + value;
+        
+      });
+      Object.assign(userData, userNewData);
+      var newEventData = Object.assign(eventData, {_incrementing: true});
+      trackEvent(eventName || '_Increment', newEventData, userData, context);
+    }
+  });
+  
+}
+
+module.exports.anonIdentified = function(req, res) {
+
+  let data = fromBase64ToObject(req.body.data);
+  let eventData = data.event_data || {};
+  let eventName = data.event_name || "";
+  let userData = data.user_data || {};
+  let context = data.context;
+
+  let oldIdentification = data.old_identification || context.current_device_id;
+  let newIdentification = context.current_id;
+  if (!oldIdentification || !newIdentification)
+    return log('Some data required');
+
+  Object.assign(eventData, { old_user: oldIdentification, new_user: newIdentification });
+
+  User.findOne({ identification: oldIdentification }, function(err, oldUser) {
+    if (!oldUser) return;
+
+    User.findOne({ identification: newIdentification }, function(err, newUser) {
+      // Identified as new user
       if (!newUser) {
-        console.log(context);
-        user.identification = newUserId;
-        user
-          .save()
-          .then(event => {
-            // After update user, save event identify
-            trackEvent(
-              "_Anon Identified",
-              { old_user: oldUserId, new_user: newUserId },
-              userData,
-              context,
-              ip,
-              newUserId,
-              req.body.context.aio_device_id,
-              req.body.aioanalytics_sid,
-              req.body.aio_referrer
-            );
-          })
-          .catch(err => {
-            log("unable update event the database " + err);
-          });
-        return log(
-          "New user not found, changing current identification to " + newUserId
+        log(context);
+        oldUser.identification = newIdentification;
+        oldUser.save().then(event => {
+          trackEvent(
+            eventName || "_Anon Identified",
+            eventData,
+            userData,
+            context
+          );
+          res.send('_Anon Identified');
+        }).catch(err => {
+          console.log("unable update user identification the database " + err);
+        });
+      } else {
+        log('_Reidentifing');
+        // Identified as already existing user
+        trackEvent(
+          eventName || "_Reidentified",
+          eventData,
+          userData,
+          context
         );
-      }
 
-      // If newUserId already exist, track a reIdentification
-      trackEvent(
-        "_Reidentified",
-        { old_user: oldUserId, new_user: newUserId },
-        userData,
-        context,
-        ip,
-        newUserId,
-        req.body.context.aio_device_id,
-        req.body.aioanalytics_sid,
-        req.body.aio_referrer
-      );
-
-      // Transfer events
-      // Needs to transfer data, like purchases value too
-      Event.find(
-        {
-          user: user.id
-        },
-        function(err, events) {
-          if (!events) return log("Event not found");
+        // Transfer events
+        // Needs to transfer data, like purchases value too
+        Event.find({ user: oldUser.id }, function(err, events) {
+          if (!events) return;
 
           events.map(event => {
-            log(event);
+            // Transfering
             event.user = newUser.id;
-            event.data["_imported"] = oldUserId;
+            event.data["_imported"] = oldIdentification;
 
-            // If event changed user number, increment in new user
+            // Incrementing all events userData on user
             var userEventDataArray = Object.entries(event.data);
             userEventDataArray.map(event => {
-              console.log(event);
               var name = event[0];
               var value = event[1].value;
-
-              if (value && value[0] && (value[0] === "+" || value[0] === "-"))
-                newUser.custom_data[name] += value.substring(1);
+              var options = event[1].options;
+              if (options) {
+                var increment = options.increment;
+                if (increment) {
+                  if (name == "#$revenue")
+                    newUser.revenue += increment;
+                  else
+                    newUser.custom_data[name.substring(1)] += increment;
+                  log('INCREMETING IN NEW USER ['+name+ ']' + increment);
+                }
+              }
             });
-            newUser.markModified("custom_data");
-            newUser
-              .save()
-              .then(user => {
-                console.log("User saved after events passing");
-              })
-              .catch(err => {
-                log(
-                  "unable update user in events loop, to the database " + err
-                );
-              });
 
             event.comments.push({
-              content: "imported from " + oldUserId + " to " + newUserId
+              content: "imported from " + oldIdentification + " to " + newIdentification
             });
+            
             event.markModified("data");
             event.markModified("comments");
-            event
-              .save()
-              .then(event => {
-                log(JSON.stringify(event));
-              })
-              .catch(err => {
-                log("unable update event the database " + err);
-              });
+            event.save().then(event => {log('Event saved');}).catch(err => {log("unable update event the database " + err);});
           });
-        }
-      );
-
-      // Inativate old
-      user.transfered_to = newUserId;
-      user
-        .save()
-        .then(user => {
-          log("User inactivated");
-        })
-        .catch(err => {
-          log("Error at user inactivation");
+          
+          log('New user revenue' + newUser.revenue);
+          newUser.markModified("custom_data");
+          newUser.save().then(user => { }) .catch(err => {log("unable update user in events loop, to the database " + err);});
+          
         });
+
+      
+
+        // Inativate old
+        oldUser.transfered_to = newIdentification;
+        oldUser.save().then(user => {log("User inactivated");}).catch(err => {log("Error at user inactivation");});
+      }
     });
   });
-}
+
+  return res.send("Events changed changed");
+};
 
 module.exports.getAllUsers = function(req, res) {
   User.find(function(err, users) {
@@ -201,184 +230,136 @@ module.exports.usersWithEvents = async function(req, res) {
   );
 };
 
-function trackEvent(
-  eventName,
-  eventData,
-  userData,
-  context,
-  ip,
-  identification,
-  device_id,
-  session_id,
-  referrer
-) {
-  console.log(context);
-  var userDataArray = Object.entries(userData);
-  var eventDataArray = Object.entries(eventData); // [ ['a', 1], ['1', 'b'], ['2', 'c'] ]
-  var contextArray = Object.entries(context); //    [ ['a', 1], ['1', 'b'], ['2', 'c'] ]
-  eventDataArray.map(data => {
-    // Transform event data value in object
-    data[1] = { value: data[1] };
+// {prop: 123, prop2: 1234} -> [['prop', {value: 123}], ['prop2', {value: 1234}]]
+function toArrayData(object) {
+  var array = Object.entries(object);
+  array.map(property => {
+    property[1] = { value: property[1], options: {} };
   });
+  return array;
+}
 
-  if (!identification) res.send("User not identified");
+function trackEvent(eventName, eventData, userData, context) {
+  var userDataArray = toArrayData(userData);
+  var eventDataArray = toArrayData(eventData);
+  var contextArray = toArrayData(context); 
 
-  User.findOne(
-    {
-      identification: identification
-    },
-    function(err, user) {
-      if (!user) {
-        user = new User({
-          identification: identification,
-          initial_referrer: referrer,
-          initial_page: context.currentUrl
-        });
+  if (!context.current_id) res.send("User not identified");
 
-        user.custom_data = {};
-        user.custom_data.registration_date = new Date();
-      } else {
-        // If user found
-        user.custom_data.last_modified = new Date();
-        user.updated = new Date();
-      }
-
-      // Setting important data
-      user.ip = ip;
-      user.device_id = device_id;
-      user.session_id = session_id;
-
-      // Setting user data
-      if (userDataArray)
-        userDataArray.map(data => {
-          log("Adding custom data");
-          var name = data[0];
-          var value = data[1];
-
-          // Old and new
-          var isChangingDefaultVariable = name[0] === "$";
-          var incrementingDecrementing = value[0] === "+" || value[0] === "-"; // Aio.track('Bought', {button: '162', value: 125}, {"$revenue": +125})
-          var numericNewValue = getNumberifNumeric(value);
-          var numericOldValue = isChangingDefaultVariable
-            ? getNumberifNumeric(user[name.substring(1)])
-            : getNumberifNumeric(user[name]);
-
-          // If user property changed in event, event saves changes
-          var currentPropertyValue;
-          if (isChangingDefaultVariable)
-            currentPropertyValue = user[name.substring(1)];
-          else currentPropertyValue = user.custom_data[name];
-          log(currentPropertyValue);
-
-          // If changed in event, event saves changes
-          if (currentPropertyValue !== undefined)
-            // If already existing user property
-            eventDataArray.push([
-              "#" + name,
-              {
-                value,
-                extra: {
-                  changed_user:
-                    "Changed " + currentPropertyValue + " → " + value
-                }
-              }
-            ]);
-          // If new user property
-          else eventDataArray.push(["#" + name, { value, extra: {} }]);
-
-          // If incrementing a numeric field
-          if (numericNewValue && numericOldValue && incrementingDecrementing) {
-            if (isChangingDefaultVariable)
-              user[name.substring(1)] += numericNewValue;
-            else user.custom_data[name] += numericNewValue;
-          } // If is a user default Field
-          else if (isChangingDefaultVariable)
-            // Default field
-            user[name.substring(1)] = value;
-          // Custom field
-          else user.custom_data[name] = value;
-
-          log(user.custom_data);
-          user.markModified("custom_data");
-        });
-
-      // Setting event data, and change user based on context
-      let event = new Event({
-        name: eventName,
-        user: user._id,
-        data: {}
+  User.findOne({ identification: context.current_id }, function(err, user) {
+    if (!user) {
+      user = new User({
+        identification: context.current_id,
+        initial_referrer: context.referrer || 'Direct',
+        initial_page: context.current_url,
       });
-      if (eventDataArray)
-        eventDataArray.map(data => {
-          log("Adding custom data");
-          var name = data[0];
-          var value = data[1];
-          event.data[name] = value;
-        });
-      if (contextArray)
-        contextArray.map(data => {
-          log("Adding custom data");
-          var name = data[0];
-          var value = data[1];
 
-          var changedUser = false;
-          if (user.custom_data["_" + name] !== value)
-            changedUser =
-              "Changed: " + user.custom_data["_" + name] + " → " + value;
-          user.custom_data["_" + name] = value;
-          event.data["_" + name] = {
-            value: value,
-            extra: { changed_user: changedUser }
-          };
-          user.markModified("custom_data");
-        });
-      event
-        .save()
-        .then(event => {
-          log("Event added successfully");
-        })
-        .catch(err => {
-          log("Error on adding event " + err);
-        });
+      user.custom_data = {};
+      user.custom_data.registration_date = new Date();
+    } else 
+      user.updated = new Date();
+    
+    // Setting user data
+    userDataArray.map(userProperty => {
+      var name = userProperty[0];
+      var value = userProperty[1].value;
 
-      // Saving data
-      user
-        .save()
-        .then(user => {
-          log("Tracked");
-        })
-        .catch(err => {
-          log("Unable to track in the database " + err);
-        });
-    }
-  );
+      var userValue = name[0] === '$' ? user[name.substring(1)] : user.custom_data[name];
+
+      // Tooltip event, if changed user data
+      var eventData;
+      if (userValue != value) {
+        eventData = [ "#" + name,{ value: value, options: { } }];
+        eventData[1].options.changed_user = "Changed " + userValue + " → " + value;
+        eventData[1].options.old_value = userValue;
+        eventData[1].options.new_value = value;
+        if (userValue + value)
+          eventData[1].options.increment = value - userValue;
+      }
+      else 
+        eventData = ["#" + name, { value: value, options: {} }];
+      eventDataArray.push(eventData);
+
+      name[0] === '$' ?  user[name.substring(1)] = value : user.custom_data[name]  = value;
+      user.markModified("custom_data");
+    });
+
+    // Setting event data, and change user based on context
+    let event = new Event({name: eventName, user: user._id, data: {}});
+    eventDataArray.map(data => {
+      var name = data[0];
+      var value = data[1].value;
+      var options = data[1].options || {};
+      event.data[name] = {value: value, options: options};
+    });
+
+    contextArray.map(data => {
+      var name = data[0];
+      var value = data[1].value;
+
+      var changedMessage = "";
+      if (user.custom_data["_" + name] !== value) 
+        changedMessage = "Changed: " + user.custom_data["_" + name] + " → " + value;
+      
+      user.custom_data["_" + name] = value;
+      user.markModified("custom_data");
+
+      event.data["_" + name] = {
+        value: value,
+        options: { changed_user: changedMessage }
+      };
+    });
+
+    event.save().then(event =>  {log("Event added successfully");}) .catch(err => {log("Error on adding event " + err);});
+    user.save() .then(user =>   {log("Tracked");})                  .catch(err => {log("Unable to track in the database " + err);});
+
+  });
+}
+
+function fromBase64ToObject(base64) {
+  return JSON.parse(Buffer.from(base64, "base64").toString());
 }
 
 module.exports.trackEvent = function(req, res) {
-  let eventName = req.body.eventName;
-  let eventData = JSON.parse(req.body.eventData);
-  let context = JSON.parse(req.body.context);
-  let userData = JSON.parse(req.body.userData);
-  var referrer = req.body.aio_referrer || "Direct";
-  var ip = req.headers["x-forwarded-for"] || req.connection.remoteAddress;
+  //var data = JSON.parse(atob(req.body.data));
+  var data = fromBase64ToObject(req.body.data);
 
-  let identification = req.body.aioanalytics_id;
-  let device_id = req.body.aio_device_id;
-  let session_id = req.body.aioanalytics_sid;
+  let eventName = data.event_name;
+  let eventData = data.event_data;
+  let userData = data.user_data;
+  let context = data.context;
 
-  trackEvent(
-    eventName,
-    eventData,
-    userData,
-    context,
-    ip,
-    identification,
-    device_id,
-    session_id,
-    referrer
-  );
+  trackEvent(eventName, eventData, userData, context);
 
   res.send("1");
 };
 
-function log(val) {}
+
+var log = console.log;
+console.log = function() {
+  ['log', 'warn', 'error'].forEach((methodName) => {
+    const originalMethod = console[methodName];
+    console[methodName] = (...args) => {
+      let initiator = 'unknown place';
+      try {
+        throw new Error();
+      } catch (e) {
+        if (typeof e.stack === 'string') {
+          let isFirst = true;
+          for (const line of e.stack.split('\n')) {
+            const matches = line.match(/^\s+at\s+(.*)/);
+            if (matches) {
+              if (!isFirst) { // first line - current function
+                              // second line - caller (what we are looking for)
+                initiator = matches[1];
+                break;
+              }
+              isFirst = false;
+            }
+          }
+        }
+      }
+      originalMethod.apply(console, [...args, '\n', `  at ${initiator}`]);
+    };
+  });
+};
