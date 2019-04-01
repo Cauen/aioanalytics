@@ -1,13 +1,10 @@
 var Aio = Aio || {};
 Aio.generateUniqueID = function() {
-  console.log("Generating unique ID");
   return (
-    Math.random()
-      .toString(36)
-      .substring(2, 15) +
-    Math.random()
-      .toString(36)
-      .substring(2, 15)
+    Math.random().toString(36).substr(2, 8) + '-' + 
+    Math.random().toString(36).substr(2, 8) + '-' + 
+    Math.random().toString(36).substr(2, 8) + '-' + 
+    Math.random().toString(36).substr(2, 8)
   );
 };
 Aio.setCookie = function(name, value) {
@@ -30,9 +27,11 @@ Aio.documentReady = function(f) {
     : f();
 };
 Aio.isIdentified = function() {
-  return (
-    Aio.getCookie("aioanalytics_id") && localStorage.getItem("aioanalytics_id")
-  );
+  console.log('Testing if Is identified');
+  var aioCookieId = Aio.getCookie("aioanalytics_id");
+  var aioLocalStorageId = localStorage.getItem("aioanalytics_id");
+  var both = aioCookieId && aioLocalStorageId;
+  return both;
 };
 Aio.unidentify = function() {
   Aio.setCookie("aio_device_id", "");
@@ -50,6 +49,7 @@ Aio.reidentify = function(userID) {
   Aio.identify(userID);
 };
 Aio.identify = function(userID, eventName, eventData = {}, userData = {}) {
+  console.log('Identifying as ' + userID || ' Random');
   // Working with device id
   if (!Aio.getCookie("aio_device_id")) {
     var device_id_generated = Aio.generateUniqueID();
@@ -59,6 +59,7 @@ Aio.identify = function(userID, eventName, eventData = {}, userData = {}) {
     } catch (e) {
       console.warn("Browser does not allow storing in local storage");
     }
+    console.log('Setting random device ID: ' + device_id_generated);
   }
   var device_id = Aio.getCookie("aio_device_id");
 
@@ -72,12 +73,14 @@ Aio.identify = function(userID, eventName, eventData = {}, userData = {}) {
     } catch (e) {
       console.warn("Browser does not allow storing in local storage");
     }
+    console.log('Setting random Session ID ' + session_id);
   }
 
   // Working with identification id
   if (userID) {
+    console.log('Setting a new identification to ' + userID);
     //If already identified and changing, track event
-    var currentIdentification = localStorage.getItem("aioanalytics_id");
+    var currentIdentification = localStorage.getItem("aioanalytics_id") || '';
 
     Aio.setCookie("aioanalytics_id", userID);
     Aio.aioanalyticsSet = true;
@@ -87,16 +90,21 @@ Aio.identify = function(userID, eventName, eventData = {}, userData = {}) {
       console.warn("Browser does not allow storing in local storage");
     }
 
-    if (currentIdentification)
-      Aio.identifyRequest(currentIdentification, eventName, eventData, userData);
+    Aio.identifyRequest(currentIdentification, eventName, eventData, userData);
   } else {
-    // Default identification is device_id
-    Aio.setCookie("aioanalytics_id", device_id);
-    try {
-      localStorage.setItem("aioanalytics_id", device_id);
-    } catch (e) {
-      console.warn("Browser does not allow storing in local storage");
+    if (!localStorage.getItem('aioanalytics_id')) {
+      console.log('Setting default identification to same as Device ID ' + device_id_generated);
+      // Default identification is device_id
+      Aio.setCookie("aioanalytics_id", device_id);
+      try {
+        localStorage.setItem("aioanalytics_id", device_id);
+      } catch (e) {
+        console.warn("Browser does not allow storing in local storage");
+      }
+    } else {
+      console.log('Identification already set and not random set');
     }
+    Aio.identifyRequest('', eventName, eventData, userData);
   }
 };
 Aio.log = function(e) {
@@ -340,7 +348,16 @@ Aio.userContext = function() {
 };
 
 //Make Request
+Aio.makingRequest = false;
+Aio.requestArray = [];
 Aio.makeCORSRequest = function (method, url, data, callbackSuccess, callbackError) {
+  if (Aio.makingRequest) {
+    Aio.requestArray.push({method, url, data, callbackSuccess, callbackError});
+    console.log(Aio.requestArray);
+    return console.warn('You cant make 2 request at same time');
+  }
+
+  Aio.makingRequest = true;
   data.context = Aio.userContext();
   var base64data = btoa(JSON.stringify(data));
   data = {};
@@ -351,7 +368,22 @@ Aio.makeCORSRequest = function (method, url, data, callbackSuccess, callbackErro
 
   var request = new XMLHttpRequest();
   request.open(method, url, true);
-  request.onreadystatechange = function() {if (request.readyState==4) console.log("Requested!");};
+  request.onreadystatechange = function() {
+    if (request.readyState==4) {
+      if (request.status === 200) {  
+        callbackSuccess(request.responseText);
+        Aio.makingRequest = false; 
+        if (Aio.requestArray.length) {
+          var nextRequest = Aio.requestArray.pop();
+          Aio.makeCORSRequest(nextRequest.method, nextRequest.url, nextRequest.data, nextRequest.callbackSuccess, nextRequest.callbackError); 
+        }
+      } else {  
+        callbackError(request.responseText);
+        Aio.makingRequest = false;  
+      }  
+    }
+    
+  };
   request.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
   var query = Aio.serialize(data);
   if (method.toUpperCase() === "GET") {
@@ -360,10 +392,12 @@ Aio.makeCORSRequest = function (method, url, data, callbackSuccess, callbackErro
   }
   request.send(query);
 };
-Aio.siteURL = "http://192.168.1.7:3000";
+Aio.siteURL = "http://192.168.1.6:3000";
 Aio.identifyRequest = function(currentIdentification, eventName, eventData = {}, userData = {}) {
-  if (localStorage.getItem("aioanalytics_id") == currentIdentification)
-    return console.warn('Already identified');
+  if (localStorage.getItem("aioanalytics_id") == currentIdentification && !eventName)
+      return console.warn('Already identified');
+
+  
   Aio.makeCORSRequest(
     "POST",
     Aio.siteURL + "/user/identify",
@@ -374,10 +408,10 @@ Aio.identifyRequest = function(currentIdentification, eventName, eventData = {},
       user_data: userData,
     },
     function(data) {
-      console.log("Identified");
+      console.log("Identified to " + data);
     },
     function(data) {
-      console.log("Not identified");
+      console.log("Not identified " + data);
     }
   );
 };
@@ -400,6 +434,9 @@ Aio.increment = function(userProperties, eventName, eventData = {}, userData = {
   );
 }
 Aio.track = function(event_name, event_data = {}, user_data = {}) {
+  if (!Aio.isIdentified())
+    Aio.identify();
+
   if (typeof event_name !== "string") event_name = "pageview";
   if (typeof event_data !== "object") event_data = {};
   if (typeof user_data !== "object") user_data = {};
@@ -421,11 +458,12 @@ Aio.track = function(event_name, event_data = {}, user_data = {}) {
   );
 };
 
-Aio.documentReady(function() {
-  console.log("Ready");
-  if (!Aio.isIdentified()) {
-    var generated = Aio.generateUniqueID();
-  }
-  Aio.identify();
-  Aio.track("pageview");
-});
+Aio.autoTrack = false;
+if (Aio.autoTrack) {
+  Aio.pageViewDate = new Date();
+  Aio.documentReady(function() {
+    console.log("Ready");  
+    Aio.track("_pageload", {timeToLoad: (new Date() - Aio.pageViewDate)/1000 });
+  });
+  Aio.track("_pageview");
+}

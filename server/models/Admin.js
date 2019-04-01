@@ -9,7 +9,7 @@ var validateEmail = function (email) {
     return re.test(email)
 };
 
-// Define collection and schema for User
+// Define collection and schema for Admin
 let Admin = new Schema({
     username: {
         type: String,
@@ -31,23 +31,23 @@ let Admin = new Schema({
     role: String,
     hash: String,
     salt: String,
-    messages: [{}],
+    dashboards: [{}],
     updated: { type: Date, default: Date.now },
 }, {
         collection: 'admin'
     });
 
-User.methods.setPassword = function (password) {
+Admin.methods.setPassword = function (password) {
     this.salt = crypto.randomBytes(16).toString('hex');
     this.hash = crypto.pbkdf2Sync(password, this.salt, 1000, 64, 'sha512').toString('hex');
 };
 
-User.methods.validPassword = function (password) {
+Admin.methods.validPassword = function (password) {
     var hash = crypto.pbkdf2Sync(password, this.salt, 1000, 64, 'sha512').toString('hex');
     return this.hash === hash;
 };
 
-User.methods.generateJwt = function () {
+Admin.methods.generateJwt = function () {
     var expiry = new Date();
     expiry.setDate(expiry.getDate() + 7);
 

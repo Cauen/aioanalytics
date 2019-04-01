@@ -25,30 +25,14 @@ let User = new Schema(
         "Please fill a valid email address"
       ]
     },
-    transfered_to: {
-      type: String
-    },
-    initial_referrer: {
-      type: String
-    },
-    initial_page: {
-      type: String
-    },
-    name: {
-      type: String
-    },
-    number: {
-      type: String
-    },
-    ip: {
-      type: String
-    },
-    device_id: {
-      type: String
-    },
-    session_id: {
-      type: String
-    },
+    transfered_to:    { type: String },
+    initial_referrer: { type: String },
+    initial_page:     { type: String },
+    name:             { type: String },
+    number:           { type: String },
+    ip:               { type: String },
+    device_id:        { type: String },
+    session_id:       { type: String },
     custom_data: Schema.Types.Mixed,
     revenue: {
       type: Number,

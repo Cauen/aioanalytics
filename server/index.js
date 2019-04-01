@@ -12,9 +12,14 @@ mongoose.connect(config.DB, { useNewUrlParser: true }).then(
   err => { console.log('Can not connect to the database' + err) }
 );
 
+// Auth
+require('./config/passport');
+
+/*
 process.on('uncaughtException', function (exception) {
-	// handle or ignore error
+	console.trace('---- Ignoring error ' + exception);
 });
+*/
 
 app.use(bodyParser.urlencoded({
     extended: true
@@ -22,10 +27,15 @@ app.use(bodyParser.urlencoded({
 app.use(bodyParser.json());
 app.use(cors());
 
+
+//Middlewares
+const adminMiddleware = require('./middlewares/isAdmin');
+
 //Routes
 const AdminRoute = require('./routes/admin.route');
 const authRoute = require('./routes/auth.route');
 const userRoute = require('./routes/user.route');
+const projectRoute = require('./routes/project.route');
 
 // Public User Registration and Login Routes
 app.use(    '/auth',                                        authRoute);
@@ -39,6 +49,9 @@ app.get(   	'/user/all',                    					userRoute.usersWithEvents);
 app.post(		'/user/data', 														userRoute.userWithEvents);
 app.post(		'/user/identify', 												userRoute.anonIdentified);
 app.post(		'/user/increment', 												userRoute.increment);
+
+app.post(   '/project', adminMiddleware, projectRoute.addProject);
+app.get(   '/project', adminMiddleware, projectRoute.getProjects);
 
 app.use("/aio.js", express.static(__dirname + '/aio.js'));
 app.use("/a*", express.static(__dirname + '/test.html'));

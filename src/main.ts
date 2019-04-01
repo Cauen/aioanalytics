@@ -6,6 +6,9 @@ import "./registerServiceWorker";
 import Vuetify from "vuetify";
 import "vuetify/dist/vuetify.min.css"; // Ensure you are using css-loader
 
+import "../node_modules/ag-grid-community/dist/styles/ag-grid.css";
+import "../node_modules/ag-grid-community/dist/styles/ag-theme-material.css";
+
 //declare module 'vue-tippy';
 import VueTippy from 'vue-tippy';
 //const VueTippy = require('vue-tippy');
@@ -26,3 +29,4 @@ new Vue({
   store,
   render: h => h(App)
 }).$mount("#app");
+

@@ -2,7 +2,7 @@ var express = require('express');
 var passport = require('passport');
 var authRoutes = express.Router();
 
-let User = require('../models/User');
+let Admin = require('../models/Admin');
 
 var sendJSONresponse = function (res, status, content) {
     res.status(status);
@@ -34,9 +34,10 @@ authRoutes.route('/login').post(function (req, res, next) {
 });
 
 authRoutes.route('/register').post(function (req, res) {
-    var user = new User();
+    var user = new Admin();
     console.log('Registering');
     user.username = 'asd';
+    user.email = 'asd@asd.com';
 
     //user.setPassword(req.body.password);
     user.setPassword('123321');

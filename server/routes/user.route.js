@@ -1,7 +1,7 @@
 let User = require("../models/User");
 let Event = require("../models/Event");
-
 var ObjectID = require("mongodb").ObjectID;
+var geoip = require('geoip-lite');
 
 function setUserData(user, name, value) {
   user[name] = value;
@@ -31,12 +31,15 @@ module.exports.increment = async function(req, res, next) {
   let userData = data.user_data || {};
   let context = data.context;
   let userProperties = data.user_properties;
+  let ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  Object.assign(userData, {'$ip': ip});
 
   let userPropertiesArray = Object.entries(userProperties);
   User.findOne({ identification: context.current_id }, (err, user) => {
     if (!user) { // If user dont exist, set user with properties
       var newUserData = Object.assign(userData, userProperties);
-      trackEvent(eventName || '_Increment', eventData, newUserData, context)
+      trackEvent(eventName || '_Increment', eventData, newUserData, context);
+      return res.send('User dont exist, setting data as new user');
     } else {
       var userNewData = {};
       userPropertiesArray.map(userProperty => {
@@ -58,18 +61,21 @@ module.exports.increment = async function(req, res, next) {
       Object.assign(userData, userNewData);
       var newEventData = Object.assign(eventData, {_incrementing: true});
       trackEvent(eventName || '_Increment', newEventData, userData, context);
+      return res.send('Incrementing to existing user ' + context.current_id);
     }
   });
   
 }
 
-module.exports.anonIdentified = function(req, res) {
+module.exports.anonIdentified = function(req, res, next) {
 
   let data = fromBase64ToObject(req.body.data);
   let eventData = data.event_data || {};
   let eventName = data.event_name || "";
   let userData = data.user_data || {};
   let context = data.context;
+  let ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  Object.assign(userData, {'$ip': ip});
 
   let oldIdentification = data.old_identification || context.current_device_id;
   let newIdentification = context.current_id;
@@ -79,7 +85,15 @@ module.exports.anonIdentified = function(req, res) {
   Object.assign(eventData, { old_user: oldIdentification, new_user: newIdentification });
 
   User.findOne({ identification: oldIdentification }, function(err, oldUser) {
-    if (!oldUser) return;
+    if (!oldUser) {
+      trackEvent(eventName || '_First Identification', eventData, userData, context);
+      return res.send('New user event identification, user identification: ' + newIdentification )
+    }
+    
+    if (oldIdentification == newIdentification) {
+      trackEvent(eventName || '_Event in already set identification', eventData, userData, context);
+      return res.send('User already idetified as ' + oldIdentification);
+    }
 
     User.findOne({ identification: newIdentification }, function(err, newUser) {
       // Identified as new user
@@ -88,20 +102,20 @@ module.exports.anonIdentified = function(req, res) {
         oldUser.identification = newIdentification;
         oldUser.save().then(event => {
           trackEvent(
-            eventName || "_Anon Identified",
+            eventName || "_Identified as new User",
             eventData,
             userData,
             context
           );
-          res.send('_Anon Identified');
+          res.send('_Identified as new User');
         }).catch(err => {
-          console.log("unable update user identification the database " + err);
+          res.send("Unable update user identification the database " + err);
         });
       } else {
-        log('_Reidentifing');
+        log('_Identified as existing User');
         // Identified as already existing user
         trackEvent(
-          eventName || "_Reidentified",
+          eventName || "_Identified as existing User",
           eventData,
           userData,
           context
@@ -146,6 +160,8 @@ module.exports.anonIdentified = function(req, res) {
           
           log('New user revenue' + newUser.revenue);
           newUser.markModified("custom_data");
+          
+          newUser.transfered_to = undefined;
           newUser.save().then(user => { }) .catch(err => {log("unable update user in events loop, to the database " + err);});
           
         });
@@ -154,12 +170,14 @@ module.exports.anonIdentified = function(req, res) {
 
         // Inativate old
         oldUser.transfered_to = newIdentification;
+        oldUser.revenue = 0;
+        oldUser.custom_data = {};
         oldUser.save().then(user => {log("User inactivated");}).catch(err => {log("Error at user inactivation");});
+        res.send('Old ' + oldIdentification + ' identified as ' + newIdentification);
       }
     });
   });
 
-  return res.send("Events changed changed");
 };
 
 module.exports.getAllUsers = function(req, res) {
@@ -240,11 +258,12 @@ function toArrayData(object) {
 }
 
 function trackEvent(eventName, eventData, userData, context) {
+  console.log('Track event ' + eventName);
   var userDataArray = toArrayData(userData);
   var eventDataArray = toArrayData(eventData);
   var contextArray = toArrayData(context); 
 
-  if (!context.current_id) res.send("User not identified");
+  if (!context.current_id) return({error:"User not identified"});
 
   User.findOne({ identification: context.current_id }, function(err, user) {
     if (!user) {
@@ -256,8 +275,19 @@ function trackEvent(eventName, eventData, userData, context) {
 
       user.custom_data = {};
       user.custom_data.registration_date = new Date();
-    } else 
+    } else {
       user.updated = new Date();
+      user.custom_data.edit_date = new Date();
+    }
+    
+
+    if (userData.ip) { // user.ip wil be set in loop
+      var geo = geoip.lookup(userData.ip);
+      user.custom_data.timezone = geo.timezone;
+      user.custom_data.country = geo.country; 
+      user.custom_data.city = geo.city; 
+      user.custom_data.region = geo.region; 
+    }
     
     // Setting user data
     userDataArray.map(userProperty => {
@@ -298,9 +328,13 @@ function trackEvent(eventName, eventData, userData, context) {
       var value = data[1].value;
 
       var changedMessage = "";
-      if (user.custom_data["_" + name] !== value) 
+      if (user.custom_data["_" + name] !== value) {
         changedMessage = "Changed: " + user.custom_data["_" + name] + " → " + value;
-      
+
+        if (name != 'referrer' && name != 'current_url') // Set event as user changer
+          event.data['_changed_user'] = { value: true };
+        
+      }
       user.custom_data["_" + name] = value;
       user.markModified("custom_data");
 
@@ -308,10 +342,11 @@ function trackEvent(eventName, eventData, userData, context) {
         value: value,
         options: { changed_user: changedMessage }
       };
+      
     });
 
-    event.save().then(event =>  {log("Event added successfully");}) .catch(err => {log("Error on adding event " + err);});
-    user.save() .then(user =>   {log("Tracked");})                  .catch(err => {log("Unable to track in the database " + err);});
+    event.save().then(event =>  {log("Event added successfully " + eventName);}) .catch(err => {log("Error on adding event " + err);});
+    user.save() .then(user =>   {log("User saved in event " + eventName);})      .catch(err => {log("Unable to save user to database " + err);});
 
   });
 }
@@ -323,20 +358,23 @@ function fromBase64ToObject(base64) {
 module.exports.trackEvent = function(req, res) {
   //var data = JSON.parse(atob(req.body.data));
   var data = fromBase64ToObject(req.body.data);
-
+  
   let eventName = data.event_name;
   let eventData = data.event_data;
   let userData = data.user_data;
   let context = data.context;
-
+  let ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  Object.assign(userData, {'$ip': ip});
+  
   trackEvent(eventName, eventData, userData, context);
+  log('Tracking \'' + eventName + '\' event');
 
-  res.send("1");
+  res.send("2");
 };
 
 
 var log = console.log;
-console.log = function() {
+xlog = function() {
   ['log', 'warn', 'error'].forEach((methodName) => {
     const originalMethod = console[methodName];
     console[methodName] = (...args) => {

@@ -66,21 +66,21 @@
                       class="color_circle"
                       :style="'border: 5px '+stringToColour(item.name)+' solid;width: 5px !important;max-width: 5px !important;border-radius: 100%;margin: 0 10px;'"
                     >
+                      
                       <div class="inner_circle"></div>
                     </div>
                     <div
                       style="color: #6d859e;"
                       class="name"
                     >{{ item.name }}
-                        <button
-                           v-if="item.data._imported"
-                          :title="'Imported from ' + item.data._imported"
-                          v-tippy="{ theme : 'light bordered' }"
-                        >
-                          <v-icon
-                            color="primary"
-                            dark
-                          >arrow_downward</v-icon>
+                        <button v-if="item.data._imported" :title="'Imported from ' + item.data._imported" v-tippy="{ interactive: true, theme : 'aio-tippy' }">
+                          <v-icon color="primary" dark >arrow_downward</v-icon>
+                        </button>
+                        <button v-if="item.data._changed_user" :title="'Changed user'" v-tippy="{ interactive: true, theme : 'aio-tippy' }">
+                          <v-icon color="primary" dark >arrow_upward</v-icon>
+                        </button>
+                        <button v-if="item.name == 'pageview'" :title="'URL: ' + item.data._current_url.value" v-tippy="{ interactive: true, theme : 'aio-tippy' }">
+                          <v-icon color="primary" dark >link</v-icon>
                         </button>
                     </div>
 
@@ -96,7 +96,7 @@
                         <button
                           v-if="property.options && property.options.changed_user"
                           :title="property.options.changed_user"
-                          v-tippy="{ theme : 'light bordered' }"
+                          v-tippy="{ theme : 'aio-tippy' }"
                         >
                           <v-icon
                             color="primary"
@@ -333,7 +333,7 @@ tr[def="transfered_to"] span {
 #events .v-icon {
   color: #6d859e !important;
   font-size: 16px;
-  padding: 0 10px;
+  padding: 0 0 0 10px;
 }
 
 .tippy-tooltip {
@@ -341,6 +341,31 @@ tr[def="transfered_to"] span {
   padding: 0.3rem 0.6rem;
   font-family: "Avenir", Helvetica, Arial, sans-serif;
 }
+
+.tippy-backdrop {
+  background-color: #7957d5 !important;
+}
+
+.tippy-tooltip.aio-tippy-theme {
+  border: 2px solid white;
+  color: white;
+}
+.tippy-popper[x-placement^='top'] 
+.tippy-tooltip.aio-tippy-theme 
+.tippy-arrow {
+    border-top: 7px solid white;
+}
+.tippy-popper[x-placement^='top'] 
+.tippy-tooltip.aio-tippy-theme 
+.tippy-arrow::after {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: -6px;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 6px solid yellow;
+    }
 </style>
 
 <script lang="ts">
@@ -385,6 +410,9 @@ export default class User extends Vue {
   }
 
   getUser(identification: any) {
+    if (!identification)
+      return false;
+
     userService.getUser(identification).then(res => {
       this.userdata = res.data;
       if (res.data.events) this.events = res.data.events.reverse();
