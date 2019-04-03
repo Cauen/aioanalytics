@@ -9,6 +9,7 @@ passport.use(
       usernameField: "email"
     },
     function(username, password, done) {
+      console.log('LOCAL STRATEGY');
       Admin.findOne({ email: username }, function(err, user) {
         if (err) {
           return done(err);

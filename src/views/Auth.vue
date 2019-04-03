@@ -41,7 +41,15 @@
             <input
               type="#{type}"
               id="#{label}"
-              required="required"
+              required="required" v-model="credentials.email"
+            />
+            <label for="#{label}">Email</label>
+            <div class="bar"></div>
+          </div><div class="input-container">
+            <input
+              type="#{type}"
+              id="#{label}"
+              required="required" v-model="credentials.username"
             />
             <label for="#{label}">Username</label>
             <div class="bar"></div>
@@ -50,18 +58,9 @@
             <input
               type="#{type}"
               id="#{label}"
-              required="required"
+              required="required" v-model="credentials.password"
             />
             <label for="#{label}">Password</label>
-            <div class="bar"></div>
-          </div>
-          <div class="input-container">
-            <input
-              type="#{type}"
-              id="#{label}"
-              required="required"
-            />
-            <label for="#{label}">Repeat Password</label>
             <div class="bar"></div>
           </div>
           <div class="button-container">
@@ -437,7 +436,8 @@ export default class Home extends Vue {
   isActive: boolean = false;
   credentials: any = {
     email: '',
-    password: ''
+    password: '',
+    username: ''
   };
 
   OpenRegister() {
@@ -448,11 +448,18 @@ export default class Home extends Vue {
   }
   async Login() {
     console.log(this.credentials.email);
-    authService.Login2(this.credentials).then((res:any) => {
+    authService.Login(this.credentials).then((res:any) => {
       if (res) router.push('users')
     });    
   }
   Register() {
+    if (this.credentials.password && this.credentials.email)
+    authService.Register(this.credentials).then((res:any) => {
+      console.log(res);
+      if (res) {
+        router.push('projects')
+      }
+    }); 
     console.log('Register');
   }
   ForgotPassword() {

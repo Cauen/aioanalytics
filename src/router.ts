@@ -12,13 +12,13 @@ const router = new Router({
   mode: "history",
   base: process.env.BASE_URL,
   routes: [
-    { path: "/",           name: "home",        component: Users },
-    { path: "/users",      name: "users",       component: () =>        import(/* webpackChunkName: "about" */ "./views/Users.vue")    },
+    { path: "/",                            name: "home",        component: Users },
+    { path: "/project/:project/users",      name: "users",       component: () =>        import(/* webpackChunkName: "about" */ "./views/Users.vue")    },
     { path: "/project/:project/funnels",    name: "funnels",     component: () =>        import(/* webpackChunkName: "about" */ "./views/Funnels.vue")    },
-    { path: "/projects",   name: "projects",    component: () =>        import(/* webpackChunkName: "about" */ "./views/Projects.vue")    },
-    { path: "/profile",    name: "profile",     component: () =>        import(/* webpackChunkName: "about" */ "./views/Profile.vue")    },
-    { path: "/auth",       name: "auth",        component: () =>        import(/* webpackChunkName: "about" */ "./views/Auth.vue")    },
-    { path: "/user/:id",   name: "user",        component: () =>        import("./views/User.vue")    },
+    { path: "/projects",                    name: "projects",    component: () =>        import(/* webpackChunkName: "about" */ "./views/Projects.vue")    },
+    { path: "/profile",                     name: "profile",     component: () =>        import(/* webpackChunkName: "about" */ "./views/Profile.vue")    },
+    { path: "/auth",                        name: "auth",        component: () =>        import(/* webpackChunkName: "about" */ "./views/Auth.vue")    },
+    { path: "/project/:project/user/:id",   name: "user",        component: () =>        import("./views/User.vue")    },
   ]
 });
 

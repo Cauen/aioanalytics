@@ -2,6 +2,7 @@ var express = require('express');
 var passport = require('passport');
 var authRoutes = express.Router();
 
+
 let Admin = require('../models/Admin');
 
 var sendJSONresponse = function (res, status, content) {
@@ -9,8 +10,11 @@ var sendJSONresponse = function (res, status, content) {
     res.json(content);
 };
 
-authRoutes.route('/login').post(function (req, res, next) {
+module.exports.login = function (req, res, next) {
+    console.log('LOCAL STRATEGY !!' + 'asd');
+    //res.send('TEST')
     passport.authenticate('local', function (err, user, info) {
+        console.log('LOCAL');
         var token;
 
         // If Passport throws/catches an error
@@ -30,10 +34,10 @@ authRoutes.route('/login').post(function (req, res, next) {
             // If user is not found1
             res.status(401).json(info);
         }
-    })(req, res, next);
-});
+    })(req, res, next)
+};
 
-authRoutes.route('/register').post(function (req, res) {
+module.exports.register = function (req, res) {
     var user = new Admin();
     let userName = req.body.username;
     let email = req.body.email;
@@ -62,6 +66,4 @@ authRoutes.route('/register').post(function (req, res) {
             res.status(400).send(err);
         });
 
-});
-
-module.exports = authRoutes;
+};

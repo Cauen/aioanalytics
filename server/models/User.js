@@ -12,8 +12,14 @@ let User = new Schema(
     identification: {
       type: String,
       lowercase: true,
-      unique: true,
-      required: true
+      required: true,
+      index: true
+    },
+    project: {
+      type: String,
+      lowercase: true,
+      required: true,
+      index: true
     },
     email: {
       type: String,
@@ -47,5 +53,5 @@ let User = new Schema(
     collection: "user"
   }
 );
-
+User.index({ project: 1, identification: 1}, { unique: true });
 module.exports = mongoose.model("User", User);

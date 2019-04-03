@@ -12,15 +12,6 @@ mongoose.connect(config.DB, { useNewUrlParser: true }).then(
   err => { console.log('Can not connect to the database' + err) }
 );
 
-// Auth
-require('./config/passport');
-
-/*
-process.on('uncaughtException', function (exception) {
-	console.trace('---- Ignoring error ' + exception);
-});
-*/
-
 app.use(bodyParser.urlencoded({
     extended: true
 }));
@@ -28,53 +19,43 @@ app.use(bodyParser.json());
 app.use(cors());
 
 
+// Auth
+require('./config/passport');
+
 //Middlewares
 const adminMiddleware = require('./middlewares/isAdmin');
 
 //Routes
 const AdminRoute = require('./routes/admin.route');
 const authRoute = require('./routes/auth.route');
+const authenticationRoute = require('./routes/authentication.route');
 const userRoute = require('./routes/user.route');
 const projectRoute = require('./routes/project.route');
 
 // Public User Registration and Login Routes
-app.use(    '/auth',                                        authRoute);
+//app.use(    '/auth',                                        authRoute);
+app.post ('/login', authenticationRoute.login);
+app.post ('/register', authenticationRoute.register);
 
 // User Routes
-app.post(   '/admin/add',                    				AdminRoute.addUser);
+app.post(   '/admin/add',                    					AdminRoute.addUser);
 
 // User Routes
 app.post(   '/user/track',                    				userRoute.trackEvent);
-app.get(   	'/user/all',                    					userRoute.usersWithEvents);
+app.post(   '/user/all',                    			  	userRoute.usersWithEvents);
 app.post(		'/user/data', 														userRoute.userWithEvents);
 app.post(		'/user/identify', 												userRoute.anonIdentified);
 app.post(		'/user/increment', 												userRoute.increment);
+app.post( 	'/user/setall', 													userRoute.setUsersProject);
+app.post(   '/user/delete', 													userRoute.deleteUser);
 
-app.post(   '/project', adminMiddleware, projectRoute.addProject);
-app.get(   '/project', adminMiddleware, projectRoute.getProjects);
+app.post(   '/project', 					adminMiddleware, 		projectRoute.addProject);
+app.get (   '/project', 					adminMiddleware, 		projectRoute.getProjects);
+app.post(   '/project/funnel', 		adminMiddleware, 		projectRoute.addFunnel);
+app.post(   '/project/funnels',		adminMiddleware, 		projectRoute.getFunnels);
 
 app.use("/aio.js", express.static(__dirname + '/aio.js'));
-app.use("/a*", express.static(__dirname + '/test.html'));
-app.get('/r*', function (req, res) {
-	res.send(`<!DOCTYPE html>
-	  <html>
-	  <head>
-		  <title>Meu site</title>
-	  </head>
-	  <body>
-	  	Campanha Google PPC <a href="http://192.168.1.7:3000/a?utm_src=google&utm_medium=ppc">link</a><br>
-	    Campanha Facebook PPC <a href="http://192.168.1.7:3000/a?utm_src=facebook&utm_medium=ppc">link</a><br>
-	    Campanha Externa <a href="http://192.168.1.7:3000/a?utm_src=refer&utm_content=post-1-blog">link</a><br>
-	  </body>
-	  </html>`);
-})
-
-app.post('/', function (req, res) {
-	var device_id = req.body.aio_device_id;
-	var origin =  req.headers.referer || 'Acesso direto';
-
-  	res.status(200).json(JSON.stringify(req.body));
-});
+app.get('/', (req, res) => res.send('AioAnalytics'))
 
 // Server
 const port = process.env.PORT || 3000;

@@ -4,14 +4,22 @@ class AuthService {
   private project: string = "";
   private token: string = "";
 
+  public Register (identification: {email: string, password: string, username?: string}) {
+    let email: any = identification.email;
+    let password: any = identification.password;
+    let username: any = identification.username;
+    return http.post("register", { email, password, username }).then(res => {
+      var response:any = res.data;
+      this.token = response.token;
+      localStorage.setItem('aio-token', response.token);
+      console.log('Token gerado ' + response.token)
+      return true;
+    }, err => {
+      console.log(err);
+    });
+  }
   public Login (user: {}) {
-    return http.post("auth/login", user);
-  }
-  public Register (identification: string) {
-    return http.post("auth/data", { identification: identification });
-  }
-  public Login2 (user: {}) {
-    return http.post("auth/login", user).then(res => {
+    return http.post("login", user).then(res => {
       var response:any = res.data;
       this.token = response.token;
       localStorage.setItem('aio-token', response.token);
@@ -70,7 +78,9 @@ class AuthService {
 
   public logout(): void {
     this.token = "";
+    this.project = "";
     localStorage.removeItem('aio-token');
+    localStorage.removeItem('aio-selected-project');
   }
 };
 

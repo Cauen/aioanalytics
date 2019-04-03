@@ -67,10 +67,11 @@ export default class Projects extends Vue {
 
   submit() {
     if (this.name)
-      ProjectService.AddProject(this.name).then(res => {
+      ProjectService.addProject(this.name).then(res => {
         var resp: any = res;
         if (resp.data.success) {
           this.projects.push(res.data.success);
+          this.projectSelected(res.data.success._id)
         }
       });
   }

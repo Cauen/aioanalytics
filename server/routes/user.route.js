@@ -24,21 +24,55 @@ function getUserCustomData(user, name) {
   return user.custom_data[name];
 }
 
+module.exports.deleteUser = function (req, res) {
+  let identification = req.body.identification;
+  let project = req.body.project;
+
+  if (!project || !identification)
+    return res.send('Needing data');
+
+  User.remove({identification: identification, project: project}, function(err, deleted) {
+    if( err )
+      return res.json(err);
+    else
+      return res.json({success: deleted});
+  })
+}
+
+module.exports.setUsersProject = function (req, res) {
+  var projectID = req.body.project;
+  if (!projectID)
+    return res.send('Project id not set');
+  User.find((err, users) => {
+    users.map(user => {
+      user.project = projectID;
+      user.save().then(ok => {
+        if (ok)
+          res.send('OK');
+        else
+          res.send('ERROR');
+      });
+    });
+
+  })
+}
+
 module.exports.increment = async function(req, res, next) {
   let data = fromBase64ToObject(req.body.data);
   let eventData = data.event_data || {};
   let eventName = data.event_name || "";
   let userData = data.user_data || {};
   let context = data.context;
+  let project = data.project;
   let userProperties = data.user_properties;
   let ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   Object.assign(userData, {'$ip': ip});
 
   let userPropertiesArray = Object.entries(userProperties);
-  User.findOne({ identification: context.current_id }, (err, user) => {
+  User.findOne({ identification: context.current_id, project: project }, (err, user) => {
     if (!user) { // If user dont exist, set user with properties
       var newUserData = Object.assign(userData, userProperties);
-      trackEvent(eventName || '_Increment', eventData, newUserData, context);
+      trackEvent(eventName || '_Increment', eventData, newUserData, context, project);
       return res.send('User dont exist, setting data as new user');
     } else {
       var userNewData = {};
@@ -60,7 +94,7 @@ module.exports.increment = async function(req, res, next) {
       });
       Object.assign(userData, userNewData);
       var newEventData = Object.assign(eventData, {_incrementing: true});
-      trackEvent(eventName || '_Increment', newEventData, userData, context);
+      trackEvent(eventName || '_Increment', newEventData, userData, context, project);
       return res.send('Incrementing to existing user ' + context.current_id);
     }
   });
@@ -74,6 +108,7 @@ module.exports.anonIdentified = function(req, res, next) {
   let eventName = data.event_name || "";
   let userData = data.user_data || {};
   let context = data.context;
+  let project = data.project;
   let ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   Object.assign(userData, {'$ip': ip});
 
@@ -84,18 +119,18 @@ module.exports.anonIdentified = function(req, res, next) {
 
   Object.assign(eventData, { old_user: oldIdentification, new_user: newIdentification });
 
-  User.findOne({ identification: oldIdentification }, function(err, oldUser) {
+  User.findOne({ identification: oldIdentification, project: project }, function(err, oldUser) {
     if (!oldUser) {
-      trackEvent(eventName || '_First Identification', eventData, userData, context);
+      trackEvent(eventName || '_First Identification', eventData, userData, context, project);
       return res.send('New user event identification, user identification: ' + newIdentification )
     }
     
     if (oldIdentification == newIdentification) {
-      trackEvent(eventName || '_Event in already set identification', eventData, userData, context);
+      trackEvent(eventName || '_Event in already set identification', eventData, userData, context, project);
       return res.send('User already idetified as ' + oldIdentification);
     }
 
-    User.findOne({ identification: newIdentification }, function(err, newUser) {
+    User.findOne({ identification: newIdentification, project: project }, function(err, newUser) {
       // Identified as new user
       if (!newUser) {
         log(context);
@@ -105,7 +140,8 @@ module.exports.anonIdentified = function(req, res, next) {
             eventName || "_Identified as new User",
             eventData,
             userData,
-            context
+            context, 
+            project
           );
           res.send('_Identified as new User');
         }).catch(err => {
@@ -118,7 +154,8 @@ module.exports.anonIdentified = function(req, res, next) {
           eventName || "_Identified as existing User",
           eventData,
           userData,
-          context
+          context, 
+          project
         );
 
         // Transfer events
@@ -197,11 +234,17 @@ function getNumberifNumeric(n) {
 
 module.exports.userWithEvents = async function(req, res) {
   let identification = req.body.identification;
+  let project = req.body.project;
+
+  if (!identification || !project)
+    return res.status(400).send('Missing data');
+
   User.aggregate(
     [
       {
         $match: {
-          identification: identification
+          identification: identification,
+          project: project
         }
       },
       {
@@ -220,15 +263,22 @@ module.exports.userWithEvents = async function(req, res) {
       if (err) {
         return res.send(err);
       } else {
-        res.json(users[0]);
+        if (users[0])
+          res.json(users[0]);
+        else 
+          res.send('No user found with this identification in this project');
       }
     }
   );
 };
 
 module.exports.usersWithEvents = async function(req, res) {
+  let project = req.body.project;
+  if (!project)
+    return res.send('Project not set');
   User.aggregate(
     [
+      { "$match": { "project": project } },
       {
         $lookup: {
           from: "event",
@@ -257,21 +307,17 @@ function toArrayData(object) {
   return array;
 }
 
-function trackEvent(eventName, eventData, userData, context) {
-  console.log('Track event ' + eventName);
-  var userDataArray = toArrayData(userData);
-  var eventDataArray = toArrayData(eventData);
-  var contextArray = toArrayData(context); 
-
+function trackEvent(eventName, eventData, userData, context, project) {
   if (!context.current_id) return({error:"User not identified"});
 
-  User.findOne({ identification: context.current_id }, function(err, user) {
+  User.findOne({ identification: context.current_id, project: project }, function(err, user) {
     if (!user) {
       user = new User({
         identification: context.current_id,
-        initial_referrer: context.referrer || 'Direct',
-        initial_page: context.current_url,
+        project: project
       });
+
+      Object.assign(userData, {'$initial_referrer': context.referrer, '$initial_page': context.current_url})
 
       user.custom_data = {};
       user.custom_data.registration_date = new Date();
@@ -288,6 +334,10 @@ function trackEvent(eventName, eventData, userData, context) {
       user.custom_data.city = geo.city; 
       user.custom_data.region = geo.region; 
     }
+
+    var userDataArray = toArrayData(userData);
+    var eventDataArray = toArrayData(eventData);
+    var contextArray = toArrayData(context); 
     
     // Setting user data
     userDataArray.map(userProperty => {
@@ -363,10 +413,11 @@ module.exports.trackEvent = function(req, res) {
   let eventData = data.event_data;
   let userData = data.user_data;
   let context = data.context;
+  let project = data.project;
   let ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
   Object.assign(userData, {'$ip': ip});
   
-  trackEvent(eventName, eventData, userData, context);
+  trackEvent(eventName, eventData, userData, context, project);
   log('Tracking \'' + eventName + '\' event');
 
   res.send("2");

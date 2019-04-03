@@ -11,7 +11,7 @@
         <v-toolbar-title>Aio Analytics</v-toolbar-title>
         <v-spacer></v-spacer>
         <v-toolbar-items class="hidden-sm-and-down">
-          <router-link v-if="authService.isLoggedIn()" to="/users"><v-btn flat>Users</v-btn></router-link>
+          <router-link v-if="authService.isLoggedIn()" :to="'/project/'+authService.getProject()+'/users'"><v-btn flat>Users</v-btn></router-link>
           <router-link v-if="authService.isLoggedIn()" :to="'/project/'+authService.getProject()+'/funnels'"><v-btn flat>Funnels</v-btn></router-link>
           <router-link v-if="authService.isLoggedIn()" to="/projects"><v-btn flat>Projects</v-btn></router-link>
           <router-link v-if="authService.isLoggedIn()" to="/profile"><v-btn flat>Profile</v-btn></router-link>

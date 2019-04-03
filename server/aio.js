@@ -350,7 +350,12 @@ Aio.userContext = function() {
 //Make Request
 Aio.makingRequest = false;
 Aio.requestArray = [];
+Aio.init = function (id) {
+  Aio.projectId = id;
+}
 Aio.makeCORSRequest = function (method, url, data, callbackSuccess, callbackError) {
+  if (!Aio.projectId)
+    return console.warn('Needs project ID');
   if (Aio.makingRequest) {
     Aio.requestArray.push({method, url, data, callbackSuccess, callbackError});
     console.log(Aio.requestArray);
@@ -359,6 +364,7 @@ Aio.makeCORSRequest = function (method, url, data, callbackSuccess, callbackErro
 
   Aio.makingRequest = true;
   data.context = Aio.userContext();
+  data.project = Aio.projectId;
   var base64data = btoa(JSON.stringify(data));
   data = {};
   data.data = base64data

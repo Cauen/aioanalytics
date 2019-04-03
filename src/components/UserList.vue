@@ -57,6 +57,7 @@ import { Component, Vue } from "vue-property-decorator";
 import { AgGridVue } from "ag-grid-vue";
 import router from "../router";
 import UserService from "../services/users";
+import authService from "../services/auth";
 
 @Component({
   name: "UserList",
@@ -241,11 +242,11 @@ export default class UserList extends Vue {
             };
 
             const link = document.createElement("a");
-            link.href = router.resolve(route).href + "/user/" + params.value;
+            link.href = router.resolve(route).href + "/project/"+authService.getProject()+"/user/" + params.value;
             link.innerText = params.value;
             link.addEventListener("click", e => {
               e.preventDefault();
-              router.push("/user/" + params.value);
+              router.push("/project/"+authService.getProject()+"/user/" + params.value);
             });
             return link;
           }
@@ -285,11 +286,11 @@ export default class UserList extends Vue {
             };
 
             const link = document.createElement("a");
-            link.href = router.resolve(route).href + "/user/" + params.value;
+            link.href = router.resolve(route).href + "/project/"+authService.getProject()+"/user/" + params.value;
             link.innerText = params.value;
             link.addEventListener("click", e => {
               e.preventDefault();
-              router.push("/user/" + params.value);
+              router.push("/project/"+authService.getProject()+"/user/" + params.value);
             });
             return link;
           }
@@ -342,7 +343,8 @@ export default class UserList extends Vue {
   }
 
   getData() {
-    UserService.getUsers().then(res => {
+    var project = authService.getProject();
+    UserService.getUsers(project).then(res => {
       var users = res.data;
       users.sort(function(a: any, b: any) {
         return +new Date(b.updated) - +new Date(a.updated);

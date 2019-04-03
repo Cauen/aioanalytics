@@ -36,7 +36,7 @@
 
                 <v-icon class="user-action">home</v-icon>
                 <v-icon class="user-action">event</v-icon>
-                <v-icon class="user-action">info</v-icon>
+                <v-icon @click="deleteUser" class="user-action">info</v-icon>
               </div>
             </div>
 
@@ -371,16 +371,28 @@ tr[def="transfered_to"] span {
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import userService from "../services/users";
+import router from '../router';
 
 @Component({})
 export default class User extends Vue {
   userid: string = "";
+  projectid: string = "";
   userdata: any = {};
   comments: any = {};
   events: any[] = [];
   custom_dataArray: any[] = [];
   importantDataArray: any[] = [];
   panel: any[] = [];
+
+  deleteUser() {
+    console.log(this.userid);
+    
+    userService.deleteUser(this.userid, this.projectid).then(res => {
+      console.log(res);
+      if (res.data.success)
+        router.go(-1);
+    });
+  }
 
   stringToColour(str: any) {
     for (
@@ -409,12 +421,15 @@ export default class User extends Vue {
     this.panel = [];
   }
 
-  getUser(identification: any) {
-    if (!identification)
+  getUser(identification: any, project: string) {
+    if (!identification || !project)
       return false;
 
-    userService.getUser(identification).then(res => {
+    userService.getUser(identification, project).then(res => {
       this.userdata = res.data;
+      console.log(res.data);
+      if (!this.userdata.custom_data)
+        return router.go(-1);
       if (res.data.events) this.events = res.data.events.reverse();
       if (res.data.comments) this.comments = res.data.comments.reverse();
 
@@ -439,11 +454,8 @@ export default class User extends Vue {
   mounted() {
     var that = this;
     this.userid = this.$route.params.id;
-
-    that.getUser(that.userid);
-    setInterval(function() {
-      that.getUser(that.userid);
-    }, 1000);
+    this.projectid = this.$route.params.project;
+    that.getUser(that.userid, this.projectid);
   }
 }
 </script>

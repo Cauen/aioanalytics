@@ -28,6 +28,16 @@
     "vue-template-compiler": "^2.5.21",
     "vue-tippy": "^2.1.2"
   },
+  "proxy": {
+    "/api": {
+      "target": "http://localhost:5000/"
+    },
+    "/users": {
+      "target": "http://localhost:5000/",
+      "changeOrigin": true,
+      "secure": false
+    }
+  },
   "postcss": {
     "plugins": {
       "autoprefixer": {}

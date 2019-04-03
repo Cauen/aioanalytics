@@ -16,10 +16,16 @@ let Project = new Schema(
     }],
     funnels: [{
       name: {type: String, required: true},
+      description: {type: String},
       steps: [{
         name: String,
         properties: [{}]
-      }]
+      }],
+      created_by: {
+        type: Schema.Types.ObjectId,
+        required: true,
+        ref: "admin"
+      }
     }],
     date: { type: Date, default: Date.now }
   },
